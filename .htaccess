@@ -1,0 +1,15 @@
+# 1. Nonaktifkan fitur "Index of" dan "MultiViews"
+Options -Indexes -MultiViews
+
+# Blokir akses ke file hidden (dotfiles)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    
+    # 2. Aturan "Rakus" (Kirim SEMUA ke fullstuck.php)
+    RewriteRule ^(.*)$ fullstuck.php [L]
+</IfModule>

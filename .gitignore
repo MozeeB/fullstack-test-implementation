@@ -1,0 +1,4 @@
+database.sqlite
+.fst-error.log
+/vendor/
+.env

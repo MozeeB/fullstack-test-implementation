@@ -1,0 +1,8 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Placeholder Title</title><link rel="stylesheet" href="/assets/style.css"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"></head><body>
+<div class="app-container" id="app-content"><header><div class="logo-wrapper"><div class="logo-icon">🚀</div><h1>Tasks</h1></div><p>FullStuck.php Framework Showcase</p></header>
+<div class="alert alert-msg">Sukses!</div><div class="alert alert-error">Error!</div>
+<form class="form-add" action="/add" method="POST" enctype="multipart/form-data" data-fst-history="false"><input type="text" name="task" placeholder="What needs to be done?" required autocomplete="off"><input type="file" name="file" accept=".png,.jpg,.pdf,.txt"><button type="submit" class="btn-primary">Add</button></form>
+<ul class="todo-list"><li class="empty-state"><div class="empty-icon">📭</div><p>Belum ada task. Tambahkan sekarang!</p></li>
+<li class="todo-item"><div class="task-content"><span class="task-text">Sample Task</span><a class="task-file" href="#" target="_blank">📄 View File</a><img class="task-img" src="" alt="Attachment" style="max-height:80px;border-radius:8px;display:block;"></div>
+<div class="task-actions"><form class="form-toggle" action="/toggle/1" method="POST" data-fst-history="false"><button type="submit" class="btn-success">Done</button></form><form class="form-delete" action="/delete/1" method="POST" data-fst-history="false"><button type="submit" class="btn-danger">Del</button></form></div></li></ul></div>
+</body></html>

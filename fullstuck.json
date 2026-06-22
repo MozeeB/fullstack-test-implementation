@@ -1,0 +1,48 @@
+{
+    "environment": "development",
+    "ai_sop": true,
+    "admin": {
+        "page_url": "/stuck",
+        "password": "$2y$12$iXd6d4cMvcvnLgIpKPcf.eVEnWBlzQ/sGnAV05SCHTL6m6KOeOIHi",
+        "allowed_ips": []
+    },
+    "database": {
+        "default": "main",
+        "connections": {
+            "main": {
+                "driver": "sqlite",
+                "database_path": "database.sqlite",
+                "host": "localhost",
+                "port": "3306",
+                "dbname": "",
+                "username": "root",
+                "password": ""
+            }
+        }
+    },
+    "routing": {
+        "base_path": "/",
+        "require": [],
+        "public_folders": [
+            "assets",
+            "uploads",
+            "storage/public"
+        ],
+        "routes_file": [
+            "router.php"
+        ],
+        "error_handlers": {
+            "404": "views/errors/404.php",
+            "403": "Sorry, you do not have permission.",
+            "405": "Method not allowed.",
+            "500": "views/errors/500.php"
+        }
+    },
+    "spa": {
+        "enabled": true,
+        "default_target": "body",
+        "header_request": "X-FST-Request",
+        "header_target": "X-FST-Target",
+        "indicator_class": "fst-loading"
+    }
+}
