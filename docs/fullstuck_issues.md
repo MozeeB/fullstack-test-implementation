@@ -8,19 +8,22 @@
 
 ---
 
-## ISSUE-001: finfo_close() Deprecated — File Upload 500 Error pada PHP 8.5
+## ISSUE-001: finfo_close() Deprecated — File Upload HTTP 500 di PHP 8.5
 
 ### Deskripsi
-Fitur file upload (`fst_upload()`) menghasilkan HTTP 500 Internal Server Error saat berjalan di PHP 8.5. Penyebabnya adalah fungsi `finfo_close()` yang deprecated sejak PHP 8.5 karena finfo objects kini di-free secara otomatis oleh garbage collector.
 
-Karena `_fst_error_handler` mengkonversi **semua** PHP errors (termasuk `E_DEPRECATED`) menjadi `ErrorException`, peringatan deprecation ini naik menjadi exception yang menghentikan eksekusi request.
+Fitur file upload (`fst_upload()`) menghasilkan HTTP 500 saat berjalan di PHP 8.5. Penyebabnya adalah `finfo_close()` yang deprecated sejak PHP 8.5 karena finfo objects kini di-free otomatis oleh garbage collector.
+
+`_fst_error_handler` mengkonversi **semua** PHP errors termasuk `E_DEPRECATED` menjadi `ErrorException`, sehingga peringatan ini naik menjadi exception yang menghentikan request.
 
 ### Severity
-**HIGH** — Breaking feature di PHP versi terbaru (8.5 adalah versi LTS aktif Homebrew)
+
+**HIGH** — Breaking feature di PHP 8.5 (versi LTS aktif di Homebrew/Ubuntu 24.04+)
 
 ### Lokasi Kode
+
 **File:** `fullstuck.php`
-**Fungsi:** `fst_upload()` (closure `$process_single`)
+**Fungsi:** `fst_upload()` → closure `$process_single`
 **Baris:** ~970
 
 ```php
@@ -34,12 +37,13 @@ if (function_exists('finfo_open')) {
 ```
 
 ### Cara Reproduksi
+
 ```bash
 # 1. Jalankan server di PHP 8.5+
 php fullstuck.php init --db=sqlite --scaffold=yes
 php -S localhost:8000 fullstuck.php
 
-# 2. GET homepage untuk dapatkan CSRF token + session
+# 2. GET homepage untuk session + CSRF token
 curl -c /tmp/sess.txt http://localhost:8000/ -o /tmp/home.html
 TOKEN=$(grep -o 'value="[a-f0-9]\{64\}"' /tmp/home.html | head -1 | cut -d'"' -f2)
 
@@ -51,63 +55,61 @@ curl -b /tmp/sess.txt -c /tmp/sess.txt -X POST http://localhost:8000/add \
 ```
 
 ### Stack Trace (Disanitasi)
+
 ```
 ErrorException: Function finfo_close() is deprecated since 8.5, as finfo objects are freed automatically
-  at fullstuck.php:970 (_fst_error_handler)
+  at fullstuck.php:970 (_fst_error_handler called with E_DEPRECATED)
   at fullstuck.php:1000 ({closure:fst_upload():956})
   at router.php:47 (fst_upload('file', 'assets', [...]))
 ```
 
 ### Solusi yang Direkomendasikan
 
-**Option A — Hapus finfo_close() (quickfix, backward-compatible):**
+**Option A — Hapus `finfo_close()` (quickfix, backward-compatible):**
 ```php
 if (function_exists('finfo_open')) {
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $actual_mime = finfo_file($finfo, $tmp_name);
-    // Hapus: finfo_close($finfo);  ← tidak diperlukan lagi
+    // Hapus baris: finfo_close($finfo);
+    $blocked_mimes = ['application/x-httpd-php', ...];
     // ...
 }
 ```
 
-**Option B — Gunakan OOP finfo (lebih modern, PHP 8.0+):**
+**Option B — Gunakan OOP finfo (direkomendasikan, PHP 8.0+):**
 ```php
 if (class_exists('finfo')) {
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $actual_mime = $finfo->file($tmp_name);
     // Tidak perlu close() — GC handle otomatis
+    $blocked_mimes = ['application/x-httpd-php', ...];
     // ...
 }
 ```
 
-**Option C — Suppress deprecation hanya untuk finfo_close (tidak direkomendasikan):**
-```php
-@finfo_close($finfo);  // Meski bisa, @ suppress tidak sejalan dengan filosofi error handling FST
-```
+Rekomendasi: **Option B** — lebih modern, tidak ada deprecation warning di PHP masa depan.
 
-Rekomendasi: **Option B** karena lebih idiomatic PHP modern dan tidak akan ada warning baru di versi PHP mendatang.
-
-### Workaround Sementara (untuk user PHP 8.5)
-Tambahkan di `router.php` sebelum `fst_upload()`:
+**Workaround Sementara (untuk user PHP 8.5 sebelum fix upstream):**
 ```php
-// Workaround PHP 8.5: suppress finfo deprecation
-$old_level = error_reporting();
-error_reporting($old_level & ~E_DEPRECATED);
+// Di router.php, sebelum memanggil fst_upload():
+$prev = error_reporting();
+error_reporting($prev & ~E_DEPRECATED);
 $upload = fst_upload('file', 'assets', [...]);
-error_reporting($old_level);
+error_reporting($prev);
 ```
-**Catatan:** Ini workaround, bukan fix. Perbaiki di core `fullstuck.php`.
 
 ### Versi yang Terpengaruh
-- PHP 8.5+ (confirmed)
-- PHP 8.4 ke bawah: tidak terpengaruh
+
+- PHP 8.5+ — **confirmed FAIL**
+- PHP 8.4 ke bawah — tidak terpengaruh
 
 ---
 
 ## ISSUE-002: Token Hardcoded di Middleware Demo Scaffold
 
 ### Deskripsi
-Scaffold `router.php` mengandung middleware demo dengan token hardcoded `123`:
+
+`router.php` yang di-generate `--scaffold=yes` mengandung middleware demo dengan secret hardcoded:
 
 ```php
 function cek_auth($next) {
@@ -115,17 +117,64 @@ function cek_auth($next) {
         // ...
     }
 }
+
+fst_group('/api', function() {
+    fst_get('/tasks', fn() => fst_json([...]));
+}, 'cek_auth');
 ```
 
-Jika developer tidak membuang ini sebelum deploy, endpoint `/api/tasks?token=123` akan accessible secara publik dengan token yang mudah ditebak.
+Endpoint `/api/tasks?token=123` menjadi accessible publik dengan token yang trivial. Jika developer tidak membersihkan scaffold sebelum deploy, ini menjadi security hole.
 
 ### Severity
-**MEDIUM** — Potensi security risk jika scaffold tidak dibersihkan
 
-### Saran
-- Tambahkan komentar `// HAPUS SEBELUM PRODUKSI` yang lebih mencolok di middleware demo
-- Atau generate middleware dengan token random (bukan `123`) saat `--scaffold=yes`
+**MEDIUM** — Security risk jika scaffold tidak dibersihkan sebelum produksi
+
+### Saran Perbaikan
+
+Saat generate scaffold, gunakan token random alih-alih literal `'123'`:
+
+```php
+// Scaffold yang lebih aman:
+define('DEMO_TOKEN', bin2hex(random_bytes(8))); // token unik per-project
+if (fst_input('token') !== DEMO_TOKEN && ...) { ... }
+```
+
+Atau tambahkan komentar yang lebih mencolok:
+
+```php
+// ⚠️ DEMO ONLY — HAPUS SEBELUM DEPLOY KE PRODUKSI
+if (fst_input('token') !== '123' && ...) { ... }
+```
 
 ---
 
-*File ini dimaksudkan untuk dilaporkan sebagai Issue atau PR ke github.com/milio48/fullstuck*
+## ISSUE-003: `fst_template` @if pada `hidden` Class Tidak Bekerja Intuitif
+
+### Deskripsi
+
+Saat menggunakan Tailwind CSS dengan class `hidden` sebagai default, lalu fst_template menghapus elemen via `@if => false`, elemen tidak bisa di-toggle — elemen dihapus dari DOM sepenuhnya, bukan di-hide via class.
+
+```html
+<!-- Di HTML: -->
+<div class="flash-msg hidden">Berhasil!</div>
+
+<!-- fst_template @if => 'fst_flash_has("msg")' -->
+<!-- Jika false: elemen dihapus dari DOM -->
+<!-- Jika true: elemen muncul (tanpa class 'hidden') -->
+```
+
+Ini sebenarnya bukan bug — ini behavior yang benar. Tapi tidak intuitif bagi developer yang mengharapkan toggle class.
+
+### Severity
+
+**LOW** — Bukan bug, tapi bisa membingungkan
+
+### Saran Dokumentasi
+
+Tambahkan catatan di SOP/docs:
+
+> `@if` menghapus elemen dari DOM sepenuhnya jika kondisi false. Ini berbeda dari toggling class `hidden`. Untuk flash messages, ini adalah behavior yang diinginkan karena elemen memang tidak boleh ada di DOM saat tidak ada pesan.
+
+---
+
+*File ini dimaksudkan untuk dilaporkan sebagai Issue atau PR ke [github.com/milio48/fullstuck](https://github.com/milio48/fullstuck)*
